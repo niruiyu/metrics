@@ -1,32 +1,51 @@
 import os
-import subprocess
 import sys
 import glob
 import re
+import threading
 
 FileType = ['.c']
 
 WORK_SPACE = r"E:\Work\edk2\\"
 
-#EFIAPI
-reEfiApi = re.compile (r'^\s*EFIAPI\s*$')
 
-#GetLocalApicBaseAddress (
-reApi = re.compile (r'^\s*([A-Za-z_][\w]*)\s*\(\s*$')
+APIRe = {}
+API = {}
+Module = {}
+Lock = threading.Lock()
 
-# IntelFsp2WrapperPkg\Library\SecFspWrapperPlatformSecLibSample\SecFspWrapperPlatformSecLibSample.inf:
-reInfPath = re.compile (r'^([\w\\]+\w[.]inf):')
+'''
+  Count how many calls to each API from this module.
+'''
+def CountApiCall (module):
+  for c in glob.glob(f"{WORK_SPACE}{module}\\**", recursive=True):
+    if os.path.isfile (c) and os.path.splitext (c)[1].lower() in ['.c']:
+      with open (c, 'r', encoding='ISO-8859-1') as f:
+        for line in f:
+          line = line.split('//')[0] # chop the single-line comments
+          for api in API:
+            if APIRe[api].search (line):
+              Lock.acquire ()
+              try:
+                API[api][module] = API[api][module] + 1
+              except:
+                API[api][module] = 1
+              Lock.release ()
+
 
 def Main():
   # 1. collect all APIs from a lib header file
   # 2. get all module INF paths from VS code search result
-  APIRe = {}
-  API = {}
-  Module = {}
   EfiApi = False
   (LibH, SearchResult) = (sys.argv[1], sys.argv[2])
 
+
   # 1. collect all APIs from a lib header file
+  #EFIAPI
+  reEfiApi = re.compile (r'^\s*EFIAPI\s*$')
+
+  #GetLocalApicBaseAddress (
+  reApi = re.compile (r'^\s*([A-Za-z_][\w]*)\s*\(\s*$')
   with open (LibH, 'r') as f:
     for line in f:
       line = line.split("//")[0]
@@ -47,6 +66,9 @@ def Main():
 
 
   # 2. get all modules from VS code search result
+
+  # IntelFsp2WrapperPkg\Library\SecFspWrapperPlatformSecLibSample\SecFspWrapperPlatformSecLibSample.inf:
+  reInfPath = re.compile (r'^([\w\\]+\w[.]inf):')
   with open (SearchResult, 'r') as f:
     for line in f:
       m = reInfPath.match (line)
@@ -58,20 +80,15 @@ def Main():
   #      for each API
   #        If the API is called
   #          Api_RefByModule++;
+  Threads = []
   for m in Module:
-    for c in glob.glob(f"{WORK_SPACE}{m}\\**", recursive=True):
-      if os.path.isfile (c) and os.path.splitext (c)[1].lower() in ['.c']:
-        with open (c, 'r') as f:
-          for line in f:
-            line = line.split('//')[0] # chop the single-line comments
-            for api in API:
-              if APIRe[api].search (line):
-                try:
-                  API[api][m] = API[api][m] + 1
-                except:
-                  API[api][m] = 1
+    t = threading.Thread (target=CountApiCall, args=(m,))
+    t.start ()
+    Threads.append (t)
     
-  
+  for t in Threads:
+    t.join () 
+
   ApiCallCount = 0
 
   for api in API:
@@ -85,4 +102,7 @@ def Main():
 
   return 0
 
-sys.exit(Main())
+import time
+start = time.time ()
+Main()
+print ("Time: {0}".format (time.time () - start))
