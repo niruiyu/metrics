@@ -1,24 +1,50 @@
 import os
+import os.path
 import glob
 import sys
 import xml.etree.ElementTree as ET
+import argparse
+import re
 
-def CountLoc2 (path):
+FILE_TYPE = [".c", "ec", "pgc", "act", ".cc", ".cpp", ".cxx", ".c++", ".pcc", ".h", "hh", ".hpp", ".hxx"]
+CPD_XML = "cpd.xml"
+
+def InDirectory(child, directory):
+  #make both absolute    
+  directory = os.path.join(directory, '') # add trailing "\\"
+  if os.path.isdir (child):
+    child = os.path.join (child, "")
+
+  #return true, if the common prefix of both is equal to directory
+  #e.g. /a/b/c/d.rst and directory is /a/b, the common prefix is /a/b
+  return os.path.commonprefix([child, directory]) == directory
+
+def CountLocFast (path, execlude = []):
   Loc = 0
-  os.system (F"loc {path} > loc.txt")
+  LocCmd = f"loc {path}"
+  for ex in execlude:
+    LocCmd = LocCmd + " --exclude " + re.escape (os.path.realpath (ex))
+  os.system (f"{LocCmd} > loc.txt")
   for line in open ("loc.txt", "r"):
     array = line.split ()
-    if array[0] == "C":
+    if array[0] in ["C", "C++"]:
       Loc = Loc + int (array[2])
     if array[0] == "C/C++" and array[1] == "Header":
       Loc = Loc + int (array[3])
   return Loc
 
-def CountLoc (path):
+def _CountLoc (path, execlude):
   TotalLoc = 0
 
+  for ex in execlude:
+    if path == ex:
+      return 0
+    if os.path.isdir (ex):
+      if InDirectory (path, ex):
+        return 0
+
   if os.path.isfile (path):
-    if os.path.splitext (path)[1].lower() in [".c", ".cpp", ".cxx", ".h", ".hpp", ".hxx"]:
+    if os.path.splitext (path)[1].lower() in FILE_TYPE:
       return sum(1 for Lines in open(path, encoding='ISO-8859-1'))
     else:
       return 0
@@ -27,61 +53,61 @@ def CountLoc (path):
     for File in glob.glob(path + r'\**', recursive=True):
         if not os.path.isfile(File):
             continue
-        TotalLoc = TotalLoc + CountLoc (File)
+        TotalLoc = TotalLoc + _CountLoc (File, execlude)
 
     return TotalLoc
 
-def ConvertPath (remote, root, path):
-  Path = []
-  RemotePath = {
-    None : "",
-    "IntelRepo": "Intel\\",
-    "EdkRepo" : "Edk2\\",
-    "Edk2PlatformsRepo" : "Edk2Platforms\\",
-    "SvRestrictedRepo" : "SvRestricted\\"
-    }
-  for p in glob.glob(root + RemotePath[remote] + path, recursive=False):
-    Path.append (p)
-  return Path
+def CountLoc (path, execlude):
+  TotalLoc = 0
 
-def GetCodePath (manifest):
-  Path = []
-  Manifest = ET.parse (manifest).getroot ()
-  for SparseData in Manifest.findall ("./SparseCheckout/SparseData"):
-    try:
-      Remote = SparseData.attrib["remote"]
-    except:
-      Remote = None
+  for p in path.split():
+    TotalLoc = TotalLoc + _CountLoc (p, execlude)
+  return TotalLoc
 
-    for Includes in SparseData.findall ("./AlwaysInclude"):
-      for Include in Includes.text.split("|"):
-        Path = Path + ConvertPath (Remote, r"E:\work\Client\\", Include)
-  return Path
 
-CiXmlRoot = r"C:\ProgramData\edkrepo\cr-manifest-master\\"
-CiIndex = r"CiIndex.xml"
+parser = argparse.ArgumentParser ()
+parser.add_argument ("-fl", "--filelist", help="Path to a file containing a list of files to analyze.", type=str)
+parser.add_argument ("-f", "--file", help="File to analyze.", type=str, nargs="*")
+parser.add_argument ("-v", "--verbose", help="verbose", action="store_true")
+parser.add_argument ("--tokens", help="The minimum token length which should be reported as a duplicate.", default=100, type=int)
+parser.add_argument ("-el", "--excludelist", help="Path to a file containing a list of files NOT to analyze.", type=str)
+parser.add_argument ("-e", "--exclude", help="File NOT to analyze", type=str, nargs="*")
+args = parser.parse_args ()
 
-CodePath = []
+if args.file is not None:
+  CodePath = [os.path.realpath(f) for f in args.file]
+else:
+  CodePath = []
+if args.filelist is not None:
+  for p in open (args.filelist, "r"):
+    CodePath.append (os.path.realpath (p.rstrip ("\r\n")))
 
-# collect project code path from CR manifest
-for p in ET.parse (CiXmlRoot + CiIndex).getroot ():
-  if p.attrib["name"] in sys.argv[1:]:
-    CodePath = CodePath + GetCodePath (CiXmlRoot + p.attrib["xmlPath"])
+if args.exclude is not None:
+  Exclude = [os.path.realpath(ex) for ex in args.exclude]
+else:
+  Exclude = []
+if args.excludelist is not None:
+  for p in open (args.excludelist, "r"):
+    Exclude.append (os.path.realpath (p.rstrip ("\r\n")))
 
-# run CPD
+# Detect code clone
 print ("run CPD...")
-CpdCmdLine = r'E:\bin\pmd-bin-6.24.0\bin\cpd.bat --minimum-tokens 100 --format xml --language c --encoding ISO-8859-1'
+CpdCmdLine = r'E:\bin\pmd-bin-6.24.0\bin\cpd.bat --minimum-tokens {0} --format xml --language c --encoding ISO-8859-1'.format (args.tokens)
 for p in CodePath:
   CpdCmdLine = CpdCmdLine + f" --files {p}"
 
+for p in Exclude:
+  CpdCmdLine = CpdCmdLine + f" --exclude {p}"
+
 print (CpdCmdLine)
-#os.system (CpdCmdLine + "> output.xml")
+os.system (f"{CpdCmdLine} > {CPD_XML}")
 
 # Count LOC
 print ("count LOC...")
-TotalLoc = CountLoc2 (str.join (" ", CodePath))
+TotalLoc = CountLocFast (str.join (" ", CodePath), Exclude)
+TotalLoc2 = CountLoc (str.join (" ", CodePath), Exclude)
 
-tree = ET.parse ("output.xml")
+tree = ET.parse (CPD_XML)
 root = tree.getroot ()
 
 #   <duplication lines="204" tokens="608">
@@ -97,6 +123,17 @@ DuplicateLoc = 0
 
 for duplication in root.findall ("./duplication"):
   DuplicateLoc = DuplicateLoc + int (duplication.attrib['lines']) * (len (duplication.findall ("file")) - 1)
+  for file in duplication.findall ("./file"):
+    path = file.attrib["path"]
+    if os.path.splitext (path)[1].lower () not in FILE_TYPE:
+      print (path)
+    In = False
+    for p in CodePath:
+      if InDirectory (path, p):
+        In = True
+        break
+    if not In:
+      print (f"{path} is not in scope.")
 
 print (f"Duplicate LOC = {DuplicateLoc}")
-print (f"Total LOC = {TotalLoc}")
+print (f"Total LOC = {TotalLoc}, {TotalLoc2}")
