@@ -19,10 +19,10 @@ def InDirectory(child, directory):
   #e.g. /a/b/c/d.rst and directory is /a/b, the common prefix is /a/b
   return os.path.commonprefix([child, directory]) == directory
 
-def CountLocFast (path, execlude = []):
+def CountLocFast (path, exclude = []):
   Loc = 0
   LocCmd = f"loc {path}"
-  for ex in execlude:
+  for ex in exclude:
     LocCmd = LocCmd + " --exclude " + re.escape (os.path.realpath (ex))
   os.system (f"{LocCmd} > loc.txt")
   for line in open ("loc.txt", "r"):
@@ -33,10 +33,10 @@ def CountLocFast (path, execlude = []):
       Loc = Loc + int (array[3])
   return Loc
 
-def _CountLoc (path, execlude):
+def _CountLoc (path, exclude):
   TotalLoc = 0
 
-  for ex in execlude:
+  for ex in exclude:
     if path == ex:
       return 0
     if os.path.isdir (ex):
@@ -53,15 +53,15 @@ def _CountLoc (path, execlude):
     for File in glob.glob(path + r'\**', recursive=True):
         if not os.path.isfile(File):
             continue
-        TotalLoc = TotalLoc + _CountLoc (File, execlude)
+        TotalLoc = TotalLoc + _CountLoc (File, exclude)
 
     return TotalLoc
 
-def CountLoc (path, execlude):
+def CountLoc (path, exclude):
   TotalLoc = 0
 
   for p in path.split():
-    TotalLoc = TotalLoc + _CountLoc (p, execlude)
+    TotalLoc = TotalLoc + _CountLoc (p, exclude)
   return TotalLoc
 
 
@@ -105,7 +105,7 @@ os.system (f"{CpdCmdLine} > {CPD_XML}")
 # Count LOC
 print ("count LOC...")
 TotalLoc = CountLocFast (str.join (" ", CodePath), Exclude)
-TotalLoc2 = CountLoc (str.join (" ", CodePath), Exclude)
+#TotalLoc2 = CountLoc (str.join (" ", CodePath), Exclude)
 
 tree = ET.parse (CPD_XML)
 root = tree.getroot ()
@@ -136,4 +136,5 @@ for duplication in root.findall ("./duplication"):
       print (f"{path} is not in scope.")
 
 print (f"Duplicate LOC = {DuplicateLoc}")
-print (f"Total LOC = {TotalLoc}, {TotalLoc2}")
+print (f"Total LOC = {TotalLoc}")
+print ("Duplication/Total = {0:.3f}".format (DuplicateLoc/TotalLoc))
