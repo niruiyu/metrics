@@ -20,9 +20,6 @@ optional arguments:
 # reuse.py
 Invoke PMD/CPD tool and [loc tool](https://github.com/niruiyu/loc.git) to get duplication LOC and total LOC for a given file list.
 ```
-usage: ManifestToPaths.py [-h] [-o OUTPUT] [-v] -w WORKSPACE project [project ...]
-ManifestToPaths.py: error: the following arguments are required: project, -w/--workspace
-
 E:\Work\metrics>py -3 ManifestToPaths.py -h
 usage: ManifestToPaths.py [-h] [-o OUTPUT] [-v] -w WORKSPACE project [project ...]
 
