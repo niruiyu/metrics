@@ -10,9 +10,13 @@ def ConvertPath (workspace, remote, path):
   RemotePath = {
     None : "",
     "IntelRepo": "Intel\\",
+    "IntelRemote" : "Intel\\",
     "EdkRepo" : "Edk2\\",
+    "EdkRemote" : "Edk2\\",
+    "Edk2PlatformsRemote" : "Edk2Platforms\\",
     "Edk2PlatformsRepo" : "Edk2Platforms\\",
-    "SvRestrictedRepo" : "SvRestricted\\"
+    "SvRestrictedRepo" : "SvRestricted\\",
+    "FDBinRemote" : "FDBin\\"
     }
   for p in glob.glob(os.path.join (workspace, RemotePath[remote], path), recursive=False):
     Path.append (os.path.realpath (p))
