@@ -74,8 +74,7 @@ def Main(workspace, library, searchresult, module):
         if m.group(1) is not None:
           Module[os.path.join (workspace, m.group (1), os.path.dirname (m.group (2)))] = []
         else:
-          Module[workspace, os.path.dirname (m.group (2))] = []
-        print (m.group(1), m.group(2))
+          Module[os.path.join (workspace, os.path.dirname (m.group (2)))] = []
 
   # 3. for each module
   #      for each API
@@ -100,6 +99,7 @@ def Main(workspace, library, searchresult, module):
 
 
   # API Usage Index
+  print ("------------------------------------------");
   print ("API Usage Index = {0:.3f}".format (ApiCallCount / (len(API) * len (Module))))
 
   for api in API:
@@ -120,4 +120,4 @@ args = parser.parse_args ()
 
 
 Main(args.workspace, args.library, args.searchresult, args.module)
-print ("Time: {0}".format (time.time () - start))
+print ("Time: {0:.2f}s".format (time.time () - start))
