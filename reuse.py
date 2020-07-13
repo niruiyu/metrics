@@ -64,7 +64,6 @@ def CountLoc (path, exclude):
     TotalLoc = TotalLoc + _CountLoc (p, exclude)
   return TotalLoc
 
-
 parser = argparse.ArgumentParser ()
 parser.add_argument ("-fl", "--filelist", help="Path to a file containing a list of files to analyze.", type=str)
 parser.add_argument ("-f", "--file", help="File to analyze.", type=str, nargs="*")
@@ -119,21 +118,42 @@ root = tree.getroot ()
 #            path="E:\work\edk2\MdePkg\Library\SmmPciExpressLib\PciExpressLib.c"/>
 #      <codefragment>
 
-DuplicateLoc = 0
+LineDb = {}
 
 for duplication in root.findall ("./duplication"):
-  DuplicateLoc = DuplicateLoc + int (duplication.attrib['lines']) * (len (duplication.findall ("file")) - 1)
-  for file in duplication.findall ("./file"):
-    path = file.attrib["path"]
-    if os.path.splitext (path)[1].lower () not in FILE_TYPE:
-      print (path)
-    In = False
-    for p in CodePath:
-      if InDirectory (path, p):
-        In = True
-        break
-    if not In:
-      print (f"{path} is not in scope.")
+  Files = duplication.findall ("./file")
+  for file in Files:
+    Path = file.attrib["path"]
+    Start = int (file.attrib["line"], 10)
+    End = int (file.attrib["endline"], 10)
+    if os.path.splitext (Path)[1].lower () not in FILE_TYPE:
+      print (Path)
+    
+    try:
+      LineDb[Path].append ((Start, End))
+    except:
+      LineDb[Path] = [(Start, End)]
+
+DuplicateLoc = 0
+for path in LineDb:
+  LineDb[path].sort (key=lambda x: x[0])
+  Start = -1
+  for (s, e) in LineDb[path]:
+    if Start == -1:
+      Start = s
+      End = e
+    
+    if s > End:
+      # no overlap
+      DuplicateLoc = DuplicateLoc + End + 1 - Start
+      Start = s
+      End = e
+    elif s <= End:
+      # overlap, extend End
+      End = max (End, e)
+
+  if Start != -1:
+    DuplicateLoc = DuplicateLoc + End + 1 - Start
 
 print (f"Duplicate LOC = {DuplicateLoc}")
 print (f"Total LOC = {TotalLoc}")
