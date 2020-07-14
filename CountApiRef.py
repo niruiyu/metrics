@@ -99,7 +99,7 @@ def Main(workspace, library, searchresult, module):
 
 
   # API Usage Index
-  print ("------------------------------------------");
+  print ("------------------------------------------")
   print ("API Usage Index = {0:.3f}".format (ApiCallCount / (len(API) * len (Module))))
 
   for api in API:
