@@ -119,9 +119,14 @@ root = tree.getroot ()
 #      <codefragment>
 
 LineDb = {}
+DuplicateLoc = 0
 
 for duplication in root.findall ("./duplication"):
+  # Because the next for-loop will count all the duplicated lines in DuplicateLoc,
+  # substract one necessary instance of the duplication.
+  DuplicateLoc = DuplicateLoc - int (duplication.attrib["lines"], 10)
   Files = duplication.findall ("./file")
+  
   for file in Files:
     Path = file.attrib["path"]
     Start = int (file.attrib["line"], 10)
@@ -134,7 +139,6 @@ for duplication in root.findall ("./duplication"):
     except:
       LineDb[Path] = [(Start, End)]
 
-DuplicateLoc = 0
 for path in LineDb:
   LineDb[path].sort (key=lambda x: x[0])
   Start = -1
